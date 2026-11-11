@@ -5,134 +5,241 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0b120d">
+<meta name="apple-mobile-web-app-title" content="Putt Lab">
+<meta name="theme-color" content="#000000">
 <title>Putt Lab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&display=swap">
 <style>
-/* Layout: the camera fills the screen like a sim bay; status up top, the last shot along the bottom, drawers on demand.
-   One dark look on purpose: it sits over live video. Pin-flag yellow marks the one thing to look at. */
+/* Operate surface over live camera, like the iPhone Camera app: video fills the screen, status text up top,
+   one toolbar of labeled controls at the bottom, results in a card just above it, settings in sheets.
+   System font for every working word; the condensed face appears only in the wordmark. One tint (green) for
+   actions and "ready"; flag yellow only marks what to look at on the video. */
 :root {
-  --bg: #0b120d; --panel: rgba(12, 20, 15, .86); --panel-solid: #121c16; --ink: #eef4ef; --muted: #9fb2a4; --line: rgba(238, 244, 239, .14);
-  --green: #48b46b; --flag: #f2c53a; --good: #55c27d; --warn: #e3a93a; --bad: #ef7a64; --info: #8fb0d6; --putter: #ff7a59;
-  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif; --body: "Barlow", system-ui, -apple-system, sans-serif;
+  --bg: #000; --sheet: #1c1c1e; --row: #2c2c2e; --sep: rgba(84, 84, 88, .55); --material: rgba(28, 28, 30, .78);
+  --label: #ffffff; --label2: rgba(235, 235, 245, .62); --label3: rgba(235, 235, 245, .32);
+  --tint: #34c759; --tint-ink: #04230e; --flag: #ffd23f; --putter: #ff7a59; --good: #34c759; --warn: #ffb020; --bad: #ff5a4f; --info: #64a8ff;
+  --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --brand: "Barlow Condensed", "Arial Narrow", -apple-system, sans-serif;
+  --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px);
+  --gut-l: max(16px, var(--safe-l)); --gut-r: max(16px, var(--safe-r));
+  --bar: 64px;
   color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.4 var(--body); -webkit-font-smoothing: antialiased; overflow: hidden; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--label); font: 400 17px/1.35 var(--ui); -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%; overflow: hidden; overscroll-behavior: none; }
 [hidden] { display: none !important; }
-button { font: inherit; color: inherit; }
+button { font: inherit; color: inherit; margin: 0; }
+::selection { background: rgba(52, 199, 89, .4); }
+:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+
+/* camera / replay surface */
 #stage { position: fixed; inset: 0; background: #000; }
 #stage video, #stage canvas.src { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 #ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-#tapLayer { position: absolute; inset: 0; cursor: crosshair; }
-.hud-top { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top, 0px) + 10px) max(14px, env(safe-area-inset-right, 0px)) 10px max(14px, env(safe-area-inset-left, 0px)); background: linear-gradient(rgba(0,0,0,.65), rgba(0,0,0,0)); }
-.brand { font: 700 22px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
-.status { display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px 6px 10px; font: 700 17px var(--display); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
-.status i { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
-.status[data-s="ready"] i { background: var(--good); box-shadow: 0 0 0 4px rgba(85, 194, 125, .25); }
-.status[data-s="hit"] i, .status[data-s="analyzing"] i { background: var(--flag); }
-.status[data-s="cal"] i { background: var(--flag); }
-.spacer { flex: 1; }
-.iconbtn { appearance: none; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; min-width: 44px; height: 44px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 600 15px var(--body); cursor: pointer; }
-.iconbtn:active, .btn:active { transform: scale(.97); }
-.rchip { position: fixed; right: max(14px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 64px); display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 4px 4px 14px; font: 600 14px var(--body); }
-.rchip .iconbtn { height: 36px; min-width: 0; border-radius: 999px; }
-#replay { cursor: pointer; }
-.prompt { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--flag); color: #241c00; font: 700 22px var(--display); letter-spacing: .04em; text-transform: uppercase; padding: 10px 20px; border-radius: 999px; pointer-events: none; white-space: nowrap; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
-.shot { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px max(14px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 12px) max(14px, env(safe-area-inset-left, 0px)); background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.75) 30%); }
-.shot-inner { max-width: 980px; margin: 0 auto; display: grid; gap: 8px; }
-.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.m { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; min-width: 0; }
-.m .k { display: flex; justify-content: space-between; align-items: center; gap: 6px; font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-.m .k b { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.m .k b.good { background: var(--good); } .m .k b.warn { background: var(--warn); } .m .k b.bad { background: var(--bad); } .m .k b.info { background: var(--info); }
-.m .v { font: 700 30px/1.05 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.m .v small { font: 600 14px var(--body); color: var(--muted); margin-left: 4px; }
-.m .s { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fix { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--flag); border-radius: 12px; padding: 8px 12px; font-size: 15px; }
-.fix b { font: 700 16px var(--display); letter-spacing: .04em; text-transform: uppercase; margin-right: 6px; }
-@media (max-width: 640px) and (orientation: portrait) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-height: 500px) { .fix { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 6px 10px; font-size: 14px; } .m { padding: 6px 10px; } .m .v { font-size: 24px; } .m .s { display: none; } .shot-inner { gap: 6px; } }
-.sheet { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100%); background: var(--panel-solid); border-left: 1px solid var(--line); padding: calc(env(safe-area-inset-top, 0px) + 16px) max(18px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 16px) 18px; overflow-y: auto; display: grid; align-content: start; gap: 14px; z-index: 5; }
-.sheet h2 { margin: 0; font: 700 24px var(--display); letter-spacing: .04em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
-.field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
-.field span { color: var(--muted); font-weight: 500; }
-.step { display: flex; align-items: center; gap: 8px; }
-.step b { font: 700 22px var(--display); min-width: 60px; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.step button, .seg button { appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,.04); border-radius: 10px; width: 44px; height: 44px; font-size: 20px; cursor: pointer; }
-.seg { display: flex; gap: 6px; } .seg button { width: auto; padding: 0 14px; font-size: 15px; font-weight: 600; }
-.seg button[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #06210f; }
-.btn { appearance: none; border: 0; border-radius: 12px; min-height: 50px; padding: 12px 18px; font: 600 17px var(--body); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .1s ease-out; }
-.btn-primary { background: var(--green); color: #06210f; } .btn-ghost { background: rgba(255,255,255,.06); border: 1px solid var(--line); color: var(--ink); }
+#tapLayer { position: absolute; inset: 0; cursor: crosshair; z-index: 2; }
+
+/* status: plain text over the video, never a button */
+.status { position: fixed; top: calc(var(--safe-t) + 10px); left: var(--gut-l); right: var(--gut-r); display: flex; align-items: center; justify-content: center; gap: 8px; pointer-events: none; z-index: 3;
+  font: 600 15px var(--ui); letter-spacing: -.01em; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+.status i { width: 9px; height: 9px; border-radius: 50%; background: var(--label3); flex: none; box-shadow: 0 0 0 1.5px rgba(0,0,0,.45); }
+.status[data-s="ready"] i { background: var(--good); }
+.status[data-s="hit"] i, .status[data-s="analyzing"] i, .status[data-s="cal"] i { background: var(--flag); }
+.hint { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); width: min(340px, calc(100% - 48px)); text-align: center; pointer-events: none; z-index: 3;
+  font: 600 20px/1.25 var(--ui); text-shadow: 0 1px 4px rgba(0,0,0,.85); text-wrap: balance; }
+.hint small { display: block; margin-top: 6px; font: 400 15px/1.35 var(--ui); color: var(--label2); }
+
+/* calibration banner */
+.calbar { position: fixed; top: calc(var(--safe-t) + 8px); left: var(--gut-l); right: var(--gut-r); z-index: 4; display: flex; align-items: center; gap: 12px; max-width: 560px; margin: 0 auto;
+  background: var(--material); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); border-radius: 14px; padding: 10px 10px 10px 16px; box-shadow: 0 6px 20px rgba(0,0,0,.35); }
+.calbar .step { font: 600 13px var(--ui); color: var(--flag); text-transform: uppercase; letter-spacing: .04em; }
+.calbar p { margin: 2px 0 0; font: 600 17px/1.25 var(--ui); }
+.calbar > div { flex: 1; min-width: 0; }
+
+/* toolbar */
+.toolbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; padding: 6px var(--gut-r) calc(var(--safe-b) + 6px) var(--gut-l);
+  background: var(--material); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); border-top: .5px solid var(--sep); }
+.toolbar-inner { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 560px; margin: 0 auto; }
+.tb { appearance: none; background: none; border: 0; height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; color: var(--label2); border-radius: 10px; transition: background-color .15s ease-out, color .15s; }
+.tb svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tb span { font: 500 11px var(--ui); letter-spacing: .01em; white-space: nowrap; }
+.tb:active { background: rgba(255,255,255,.08); }
+.tb[aria-pressed="true"], .tb.on { color: var(--tint); }
+.tb:disabled { color: var(--label3); }
+.tb .badge { font: 600 11px var(--ui); font-variant-numeric: tabular-nums; }
+
+/* last shot */
+.shot { position: fixed; left: var(--gut-l); right: var(--gut-r); bottom: calc(var(--bar) + var(--safe-b) + 10px); z-index: 3; max-width: 760px; margin: 0 auto;
+  background: var(--material); -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6); border-radius: 16px; box-shadow: 0 8px 28px rgba(0,0,0,.4); overflow: hidden; }
+.shot-head { appearance: none; background: none; border: 0; width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 14px; text-align: left; cursor: pointer; min-height: 44px; }
+.shot-head .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.shot-head .t { flex: 1; min-width: 0; font: 600 15px/1.3 var(--ui); }
+.shot-head .t small { display: block; font: 400 14px/1.35 var(--ui); color: var(--label2); }
+.shot-head svg { width: 18px; height: 18px; stroke: var(--label2); fill: none; stroke-width: 2; flex: none; transition: transform .2s ease-out; }
+.shot.min .shot-head svg { transform: rotate(180deg); }
+.shot.min .shot-head .t small { display: none; }
+.shot-head .t .sum { display: none; font: 600 15px/1.3 var(--ui); font-variant-numeric: tabular-nums; color: var(--label); }
+.shot.min .shot-head .t .sum { display: block; }
+.shot.min .shot-head .t .ttl { display: none; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: .5px solid var(--sep); }
+.shot.min .metrics { display: none; }
+.m { padding: 10px 12px 12px; min-width: 0; }
+.m + .m { border-left: .5px solid var(--sep); }
+.m .k { display: flex; align-items: center; gap: 6px; font: 500 12px var(--ui); color: var(--label2); }
+.m .k i { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.m .v { margin-top: 2px; font: 600 24px/1.1 var(--ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m .s { font: 400 13px/1.3 var(--ui); color: var(--label2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.good { background: var(--good); } .warn { background: var(--warn); } .bad { background: var(--bad); } .info { background: var(--info); }
+@media (max-width: 520px) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .m:nth-child(3) { border-left: 0; } .m:nth-child(n+3) { border-top: .5px solid var(--sep); }
+  .m .v { font-size: 22px; }
+}
+@media (max-height: 480px) { .m { padding: 8px 12px 9px; } .m .v { font-size: 20px; } .m .s { display: none; } .shot-head { padding: 8px 14px; } }
+
+/* sheets */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; max-height: min(88%, 720px); max-width: 600px; margin: 0 auto; background: var(--sheet); border-radius: 14px 14px 0 0;
+  padding: 6px var(--gut-r) calc(var(--safe-b) + 20px) var(--gut-l); overflow-y: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 -8px 30px rgba(0,0,0,.5); animation: rise .28s cubic-bezier(.2, .8, .2, 1); }
+@keyframes rise { from { transform: translateY(24px); opacity: .5; } to { transform: none; opacity: 1; } }
+.grab { width: 36px; height: 5px; border-radius: 3px; background: var(--label3); margin: 4px auto 6px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: 6px; }
+.sheet-head h2 { margin: 0; font: 700 20px var(--ui); letter-spacing: -.01em; }
+.link { appearance: none; background: none; border: 0; color: var(--tint); font: 600 17px var(--ui); min-height: 44px; padding: 0 4px; cursor: pointer; }
+.group { background: var(--row); border-radius: 12px; overflow: hidden; margin: 0 0 8px; }
+.group-label { margin: 18px 4px 6px; font: 400 13px var(--ui); color: var(--label2); text-transform: uppercase; letter-spacing: .02em; }
+.group-foot { margin: 0 4px 6px; font: 400 13px/1.4 var(--ui); color: var(--label2); }
+.row { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 12px 6px 16px; }
+.row + .row { border-top: .5px solid var(--sep); }
+.row .name { flex: 1; min-width: 0; }
+.row .val { font-variant-numeric: tabular-nums; color: var(--label2); min-width: 48px; text-align: right; }
+.stepper { display: inline-flex; background: rgba(118, 118, 128, .24); border-radius: 9px; overflow: hidden; flex: none; }
+.stepper button { appearance: none; border: 0; background: none; width: 46px; height: 34px; cursor: pointer; display: grid; place-items: center; }
+.stepper button + button { border-left: .5px solid var(--sep); }
+.stepper svg { width: 14px; height: 14px; stroke: var(--label); stroke-width: 2.2; stroke-linecap: round; }
+.stepper button:active { background: rgba(255,255,255,.12); }
+.seg { display: inline-grid; grid-template-columns: 1fr 1fr; background: rgba(118, 118, 128, .24); border-radius: 9px; padding: 2px; flex: none; }
+.seg button { appearance: none; border: 0; background: none; height: 30px; min-width: 72px; padding: 0 12px; border-radius: 7px; font: 500 14px var(--ui); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: #636366; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+.switch { appearance: none; -webkit-appearance: none; width: 51px; height: 31px; border-radius: 16px; background: rgba(120,120,128,.32); position: relative; cursor: pointer; flex: none; transition: background-color .2s; margin: 0; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.3); transition: transform .2s ease-out; }
+.switch:checked { background: var(--tint); } .switch:checked::after { transform: translateX(20px); }
+.rowbtn { appearance: none; border: 0; background: none; width: 100%; text-align: left; min-height: 48px; padding: 0 16px; font: 400 17px var(--ui); color: var(--tint); cursor: pointer; }
+.rowbtn.danger { color: var(--bad); }
+.rowbtn:active { background: rgba(255,255,255,.06); }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 15px; }
-th, td { padding: 8px 4px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; } th:first-child, td:first-child { text-align: left; }
-th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
-tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(--muted); font-size: 13px; }
-.muted { color: var(--muted); font-size: 14px; margin: 0; }
-.start { position: fixed; inset: 0; display: grid; place-items: center; padding: max(20px, env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); background: radial-gradient(120% 90% at 50% 120%, #1d5c35 0%, var(--bg) 60%); overflow-y: auto; z-index: 6; }
-.start-card { width: min(560px, 100%); display: grid; gap: 16px; }
-.start h1 { margin: 0; font: 700 56px/0.95 var(--display); letter-spacing: .02em; text-transform: uppercase; }
-.start h1 span { color: var(--flag); }
-.start p { margin: 0; color: var(--muted); font-size: 17px; }
-.start ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--ink); }
-.start .row { display: flex; gap: 10px; flex-wrap: wrap; } .start .row .btn { flex: 1 1 200px; }
-.err { color: var(--bad); font-weight: 600; }
-:focus-visible { outline: 3px solid var(--flag); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .btn, .iconbtn { transition: none; } }
+th, td { padding: 10px 8px; text-align: right; white-space: nowrap; } th:first-child, td:first-child { text-align: left; padding-left: 16px; } th:last-child, td:last-child { padding-right: 16px; }
+tbody tr + tr td, tfoot tr td { border-top: .5px solid var(--sep); }
+th { font: 500 12px var(--ui); color: var(--label2); padding-top: 12px; }
+tfoot td { font-weight: 600; } tfoot tr.spread td { font-weight: 400; color: var(--label2); font-size: 13px; }
+.empty { padding: 18px 16px; color: var(--label2); font-size: 15px; margin: 0; }
+
+/* start */
+.start { position: fixed; inset: 0; z-index: 20; overflow-y: auto; background: #050806; display: grid; place-items: center;
+  padding: max(28px, calc(var(--safe-t) + 16px)) var(--gut-r) max(28px, calc(var(--safe-b) + 16px)) var(--gut-l); }
+.start::before { content: ""; position: fixed; inset: 0; background: radial-gradient(110% 70% at 50% 110%, rgba(52, 199, 89, .22), transparent 60%); pointer-events: none; }
+.start-card { position: relative; width: min(520px, 100%); display: grid; gap: 20px; }
+.wordmark { display: flex; align-items: center; gap: 10px; font: 700 52px/0.9 var(--brand); letter-spacing: .01em; text-transform: uppercase; margin: 0; }
+.wordmark svg { width: 34px; height: 44px; flex: none; }
+.start p.lede { margin: 0; color: var(--label2); font-size: 17px; line-height: 1.45; }
+.steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+.steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: start; font-size: 16px; line-height: 1.4; }
+.steps li b { font-weight: 600; }
+.steps svg { width: 26px; height: 26px; stroke: var(--tint); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.actions { display: grid; gap: 10px; }
+.btn { appearance: none; border: 0; border-radius: 14px; min-height: 52px; padding: 14px 20px; font: 600 17px var(--ui); cursor: pointer; transition: transform .1s ease-out, opacity .15s; }
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--tint); color: var(--tint-ink); }
+.btn-plain { background: rgba(118, 118, 128, .24); color: var(--label); }
+.btn:disabled { opacity: .4; }
+.err { color: var(--bad); margin: 0; font-size: 15px; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .start-card { width: min(760px, 100%); grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 32px; align-items: center; }
+  .start-card > .intro { grid-row: span 2; }
+  .wordmark { font-size: 44px; }
+}
+.toast { position: fixed; left: 50%; top: calc(var(--safe-t) + 44px); transform: translateX(-50%); z-index: 6; background: var(--material); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border-radius: 999px; padding: 8px 16px; font: 600 15px var(--ui); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } .btn, .tb, .switch, .switch::after, .shot-head svg { transition: none; } }
 </style>
 </head>
 <body>
 <div id="stage"><video id="cam" playsinline muted autoplay hidden></video><canvas class="src" id="demoView" hidden></canvas><canvas id="ov"></canvas><canvas class="src" id="replay" hidden></canvas><div id="tapLayer" hidden></div></div>
-<div class="rchip" id="rchip" hidden><span id="rchipText">Replay · ½ speed</span><button class="iconbtn" id="liveBtn" type="button">Live</button></div>
 
-<div class="hud-top">
-  <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><line x1="7" y1="3" x2="7" y2="21" stroke="currentColor" stroke-width="2"/><path d="M7 3 L21 7.5 L7 12Z" fill="var(--flag)"/></svg>Putt Lab</div>
-  <div class="status" id="status" data-s="idle"><i></i><span id="statusText">Off</span></div>
-  <div class="spacer"></div>
-  <button class="iconbtn" id="replayBtn" type="button" hidden>Replay</button>
-  <button class="iconbtn" id="voiceBtn" type="button" aria-pressed="true" aria-label="Voice callouts">🔊</button>
-  <button class="iconbtn" id="sessionBtn" type="button">Session <span id="count">0</span></button>
-  <button class="iconbtn" id="setBtn" type="button" aria-label="Settings"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+<div class="status" id="status" data-s="idle" role="status" aria-live="polite"><i></i><span id="statusText">Off</span></div>
+<div class="hint" id="hint" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<div class="calbar" id="calbar" hidden>
+  <div><div class="step" id="calStep">Step 1 of 2</div><p id="calText">Tap your ball</p></div>
+  <button class="link" id="calCancel" type="button">Cancel</button>
 </div>
-<div class="prompt" id="prompt" hidden></div>
 
-<div class="shot" id="shot" hidden><div class="shot-inner"><div class="fix" id="fix"></div><div class="metrics" id="metrics"></div></div></div>
+<section class="shot" id="shot" hidden>
+  <button class="shot-head" id="shotHead" type="button" aria-expanded="true"><span class="dot" id="shotDot"></span><span class="t" id="fix"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
+  <div class="metrics" id="metrics"></div>
+</section>
 
-<aside class="sheet" id="settings" hidden>
-  <h2>Setup <button class="iconbtn" data-close="settings" type="button">Done</button></h2>
-  <div class="field"><span>Putt length</span><div class="step"><button type="button" data-step="puttFt:-1" aria-label="Shorter">−</button><b id="v-puttFt"></b><button type="button" data-step="puttFt:1" aria-label="Longer">+</button></div></div>
-  <div class="field"><span>Tripod height (camera to green)</span><div class="step"><button type="button" data-step="camHin:-2" aria-label="Lower">−</button><b id="v-camHin"></b><button type="button" data-step="camHin:2" aria-label="Higher">+</button></div></div>
-  <div class="field"><span>Offset past your line</span><div class="step"><button type="button" data-step="camOutIn:-1" aria-label="Less">−</button><b id="v-camOutIn"></b><button type="button" data-step="camOutIn:1" aria-label="More">+</button></div></div>
-  <div class="field"><span>You putt</span><div class="seg"><button type="button" id="handR">Right</button><button type="button" id="handL">Left</button></div></div>
-  <button class="btn btn-ghost" id="recalBtn" type="button">Re-mark ball spot and aim coin</button>
-  <p class="muted">Tripod height and offset correct for the camera angle; within a few inches is fine. The aim coin sets your line, so put it right on it.</p>
-  <button class="btn btn-ghost" id="stopBtn" type="button">Turn camera off</button>
+<nav class="toolbar" id="toolbar" hidden aria-label="Controls"><div class="toolbar-inner">
+  <button class="tb" id="lineBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="16" r="2.4"/><circle cx="19" cy="8" r="2.4"/><path d="M7.3 15l9.4-6" stroke-dasharray="2.2 2.4"/></svg><span>Line</span></button>
+  <button class="tb" id="replayBtn" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor" stroke="none"/></svg><span id="replayLabel">Replay</span></button>
+  <button class="tb" id="sessionBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V11M12 19V5M19 19v-6"/></svg><span>Session <b class="badge" id="count">0</b></span></button>
+  <button class="tb" id="voiceBtn" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" id="voiceIcon"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><span id="voiceLabel">Sound</span></button>
+  <button class="tb" id="setBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>Setup</span></button>
+</div></nav>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="sheet" id="settings" hidden aria-label="Setup">
+  <div class="grab"></div>
+  <div class="sheet-head"><h2>Setup</h2><button class="link" data-close type="button">Done</button></div>
+  <div class="group-label">Your putt</div>
+  <div class="group">
+    <div class="row"><span class="name">Putt length</span><span class="val" id="v-puttFt"></span><span class="stepper"><button type="button" data-step="puttFt:-1" aria-label="Shorter putt"><svg viewBox="0 0 14 14"><path d="M2 7h10"/></svg></button><button type="button" data-step="puttFt:1" aria-label="Longer putt"><svg viewBox="0 0 14 14"><path d="M2 7h10M7 2v10"/></svg></button></span></div>
+    <div class="row"><span class="name">You putt</span><span class="seg"><button type="button" id="handR">Right</button><button type="button" id="handL">Left</button></span></div>
+  </div>
+  <div class="group-label">Tripod</div>
+  <div class="group">
+    <div class="row"><span class="name">Height above green</span><span class="val" id="v-camHin"></span><span class="stepper"><button type="button" data-step="camHin:-2" aria-label="Lower"><svg viewBox="0 0 14 14"><path d="M2 7h10"/></svg></button><button type="button" data-step="camHin:2" aria-label="Higher"><svg viewBox="0 0 14 14"><path d="M2 7h10M7 2v10"/></svg></button></span></div>
+    <div class="row"><span class="name">Offset past your line</span><span class="val" id="v-camOutIn"></span><span class="stepper"><button type="button" data-step="camOutIn:-1" aria-label="Less offset"><svg viewBox="0 0 14 14"><path d="M2 7h10"/></svg></button><button type="button" data-step="camOutIn:1" aria-label="More offset"><svg viewBox="0 0 14 14"><path d="M2 7h10M7 2v10"/></svg></button></span></div>
+  </div>
+  <p class="group-foot">Measure from the camera lens. Within a few inches is fine; these correct for the camera's angle.</p>
+  <div class="group-label">Callouts</div>
+  <div class="group"><div class="row"><span class="name">Speak results after each putt</span><input type="checkbox" class="switch" id="voiceSwitch" aria-label="Speak results"></div></div>
+  <div class="group" style="margin-top:18px">
+    <button class="rowbtn" id="recalBtn" type="button">Set ball spot and aim coin</button>
+    <button class="rowbtn danger" id="stopBtn" type="button">Turn camera off</button>
+  </div>
 </aside>
 
-<aside class="sheet" id="session" hidden>
-  <h2>Session <button class="iconbtn" data-close="session" type="button">Done</button></h2>
-  <p class="muted" id="sessEmpty">Putts land here as you roll them, with averages and how consistent you were.</p>
-  <div style="overflow-x:auto" id="sessWrap" hidden><table>
-    <thead><tr><th>#</th><th>Tempo</th><th>Start</th><th>Path</th><th>Back</th></tr></thead>
-    <tbody id="sessBody"></tbody>
-    <tfoot><tr><td>Avg</td><td id="aT"></td><td id="aS"></td><td id="aP"></td><td id="aB"></td></tr><tr class="spread"><td>±</td><td id="dT"></td><td id="dS"></td><td id="dP"></td><td id="dB"></td></tr></tfoot>
-  </table></div>
-  <div id="clearRow" hidden><button class="btn btn-ghost" id="clearBtn" type="button">Clear session</button>
-    <div id="clearAsk" hidden style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>Delete every putt?</span><button class="btn btn-ghost" id="clearYes" type="button">Delete</button><button class="btn btn-ghost" id="clearNo" type="button">Keep</button></div></div>
+<aside class="sheet" id="session" hidden aria-label="Session">
+  <div class="grab"></div>
+  <div class="sheet-head"><h2>Session</h2><button class="link" data-close type="button">Done</button></div>
+  <div class="group">
+    <p class="empty" id="sessEmpty">Each putt you roll lands here, with your averages and how much they varied.</p>
+    <div style="overflow-x:auto" id="sessWrap" hidden><table>
+      <thead><tr><th>Putt</th><th>Tempo</th><th>Start</th><th>Path</th><th>Back</th></tr></thead>
+      <tbody id="sessBody"></tbody>
+      <tfoot><tr><td>Average</td><td id="aT"></td><td id="aS"></td><td id="aP"></td><td id="aB"></td></tr><tr class="spread"><td>Spread ±</td><td id="dT"></td><td id="dS"></td><td id="dP"></td><td id="dB"></td></tr></tfoot>
+    </table></div>
+  </div>
+  <div class="group" id="clearRow" hidden>
+    <button class="rowbtn danger" id="clearBtn" type="button">Clear session</button>
+    <div id="clearAsk" hidden><div class="row"><span class="name">Delete every putt in this session?</span></div><button class="rowbtn danger" id="clearYes" type="button">Delete putts</button><button class="rowbtn" id="clearNo" type="button">Keep them</button></div>
+  </div>
 </aside>
 
 <section class="start" id="start">
   <div class="start-card">
-    <h1>Putt <span>Lab</span></h1>
-    <p>Your putting sim. Leave it on, roll putts, and it reads every stroke the moment the ball leaves your spot: tempo, start line, putter path and backstroke, called out loud.</p>
-    <ol>
-      <li>Phone on the tripod arm above your putter, camera down, out past the far side of your line. Hold it sideways.</li>
-      <li>Drop a coin on your line 1–2 ft ahead of the ball, inside the picture.</li>
-      <li>Start the camera, tap your ball, then the coin. After that it arms itself every time a ball sits still on the spot.</li>
+    <div class="intro" style="display:grid;gap:14px">
+      <h1 class="wordmark"><svg viewBox="0 0 34 44" aria-hidden="true"><line x1="6" y1="4" x2="6" y2="40" stroke="#fff" stroke-width="2.4"/><path d="M6 4 L30 11 L6 18Z" fill="#ffd23f"/><ellipse cx="17" cy="40" rx="14" ry="3.2" fill="#34c759" opacity=".5"/></svg>Putt Lab</h1>
+      <p class="lede">Leave it on and roll putts. Each time the ball leaves your spot it reads the stroke, calls out tempo, start line and path, and replays it with the lines drawn on.</p>
+    </div>
+    <ol class="steps">
+      <li><svg viewBox="0 0 26 26" aria-hidden="true"><rect x="7" y="3" width="12" height="7" rx="1.6"/><path d="M13 10v13M8 23l5-6 5 6"/></svg><span>Phone on the tripod <b>above your putter</b>, camera down, set out past the far side of your line.</span></li>
+      <li><svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="6" cy="18" r="3"/><circle cx="20" cy="8" r="3"/><path d="M8.8 16.3l8.4-6.6" stroke-dasharray="2 2.4"/></svg><span>Drop a <b>coin on your line</b> 1–2 ft ahead of the ball, in the picture.</span></li>
+      <li><svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="9"/><path d="M9 13.5l3 3 5.5-6"/></svg><span>Start the camera and tap the ball, then the coin. Then just putt.</span></li>
     </ol>
-    <div class="row"><button class="btn btn-primary" id="camBtn" type="button">Start camera</button><button class="btn btn-ghost" id="demoBtn" type="button">Try the demo</button></div>
-    <p class="err" id="startErr" hidden></p>
+    <div class="actions"><button class="btn btn-primary" id="camBtn" type="button">Start camera</button><button class="btn btn-plain" id="demoBtn" type="button">Try the demo</button><p class="err" id="startErr" hidden></p></div>
   </div>
 </section>
 
@@ -152,15 +259,19 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
   function renderSetup() {
     $("v-puttFt").textContent = setup.puttFt + " ft"; $("v-camHin").textContent = setup.camHin + " in"; $("v-camOutIn").textContent = setup.camOutIn + " in";
     $("handR").setAttribute("aria-pressed", setup.hand === "R"); $("handL").setAttribute("aria-pressed", setup.hand === "L");
-    $("voiceBtn").setAttribute("aria-pressed", setup.voice); $("voiceBtn").textContent = setup.voice ? "🔊" : "🔈"; $("voiceBtn").style.opacity = setup.voice ? 1 : .55;
+    $("voiceBtn").setAttribute("aria-pressed", setup.voice); $("voiceLabel").textContent = setup.voice ? "Sound" : "Muted"; $("voiceSwitch").checked = setup.voice;
+    $("voiceIcon").innerHTML = setup.voice ? '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>' : '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>';
     store.set("puttlab.live.setup", setup);
   }
   document.querySelectorAll("[data-step]").forEach(b => b.onclick = () => { const [k, d] = b.dataset.step.split(":"); setup[k] = Math.min(lim[k][1], Math.max(lim[k][0], setup[k] + +d)); renderSetup(); });
   $("handR").onclick = () => { setup.hand = "R"; renderSetup(); }; $("handL").onclick = () => { setup.hand = "L"; renderSetup(); };
-  $("voiceBtn").onclick = () => { setup.voice = !setup.voice; renderSetup(); if (!setup.voice) try { speechSynthesis.cancel(); } catch (e) {} };
-  $("setBtn").onclick = () => { $("session").hidden = true; $("settings").hidden = !$("settings").hidden; };
-  $("sessionBtn").onclick = () => { $("settings").hidden = true; $("session").hidden = !$("session").hidden; };
-  document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => $(b.dataset.close).hidden = true);
+  const setVoice = on => { setup.voice = on; renderSetup(); if (!on) try { speechSynthesis.cancel(); } catch (e) {} toast(on ? "Callouts on" : "Callouts muted"); };
+  $("voiceBtn").onclick = () => setVoice(!setup.voice); $("voiceSwitch").onchange = e => setVoice(e.target.checked);
+  function openSheet(id) { closeSheets(); $(id).hidden = false; $("scrim").hidden = false; }
+  function closeSheets() { $("settings").hidden = true; $("session").hidden = true; $("scrim").hidden = true; }
+  $("setBtn").onclick = () => openSheet("settings"); $("sessionBtn").onclick = () => openSheet("session");
+  $("scrim").onclick = closeSheets; document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeSheets);
+  let toastT = 0; function toast(t) { const el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, 1600); }
 
   // ---------- frame source ----------
   let W = 0, H = 0, work = null, wctx = null, viewEl = null, srcW = 0, srcH = 0, running = false, stream = null, demo = null;
@@ -208,14 +319,14 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && running) keepAwake(); });
 
   function begin(kind) {
-    running = true; $("start").hidden = true; mode = kind; keepAwake();
+    running = true; $("start").hidden = true; $("toolbar").hidden = false; mode = kind; keepAwake();
     calib = kind === "demo" ? demo.calib : store.get("puttlab.live.calib", null);
     buf.length = 0; rest = null; still = null; hit = null;
     setState(calib ? "waiting" : "cal"); if (!calib) startCal();
-    if (setup.voice) say(kind === "demo" ? "Demo bay running." : "Camera on.");
+    if (setup.voice && calib) say(kind === "demo" ? "Demo bay running." : "Camera on.");
     window.addEventListener("resize", drawOverlay);
   }
-  function stop() { showLive(); running = false; if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; try { wake && wake.release(); } catch (e) {} $("start").hidden = false; $("settings").hidden = true; setState("idle"); }
+  function stop() { closeSheets(); endCal(); showLive(); $("toolbar").hidden = true; $("shot").hidden = true; $("hint").hidden = true; running = false; if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; try { wake && wake.release(); } catch (e) {} $("start").hidden = false; setState("idle"); }
   $("camBtn").onclick = () => { primeSpeech(); startCamera(); };
   $("demoBtn").onclick = () => { primeSpeech(); startDemo(); };
   $("stopBtn").onclick = stop;
@@ -227,20 +338,33 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
   // ---------- calibration taps ----------
   let mode = null, calib = null, calTaps = null;
   function fitRect(el) { const cw = el.clientWidth, ch = el.clientHeight, s = Math.min(cw / srcW, ch / srcH); return { x: (cw - srcW * s) / 2, y: (ch - srcH * s) / 2, w: srcW * s, h: srcH * s, cw, ch }; }
-  function startCal() { showLive(); calTaps = {}; $("tapLayer").hidden = false; setState("cal"); prompt("Tap your ball"); drawOverlay(); }
-  $("recalBtn").onclick = () => { $("settings").hidden = true; startCal(); };
+  let prevState = null;
+  function startCal() { if (!running) return; closeSheets(); showLive(); prevState = state; calTaps = {}; $("tapLayer").hidden = false; $("shot").hidden = true; $("hint").hidden = true; setState("cal");
+    $("calStep").textContent = "Step 1 of 2"; $("calText").textContent = "Tap the center of your ball"; $("calbar").hidden = false; drawOverlay(); }
+  function endCal() { $("calbar").hidden = true; $("tapLayer").hidden = true; }
+  $("recalBtn").onclick = startCal; $("lineBtn").onclick = startCal;
+  $("calCancel").onclick = () => { endCal(); if (calib) { setState("waiting"); rest = null; still = null; if (lastShown) $("shot").hidden = false; } drawOverlay(); };
   $("tapLayer").addEventListener("click", e => {
     const fr = fitRect(viewEl), p = { fx: (e.clientX - fr.x) / fr.w, fy: (e.clientY - fr.y) / fr.h }; if (p.fx < 0 || p.fx > 1 || p.fy < 0 || p.fy > 1) return;
-    if (!calTaps.ball) { calTaps.ball = p; prompt("Now tap the aim coin"); }
-    else { calTaps.aim = p; calib = calTaps; if (mode === "cam") store.set("puttlab.live.calib", calib); $("tapLayer").hidden = true; prompt(null); rest = null; still = null; setState("waiting"); }
+    if (!calTaps.ball) { calTaps.ball = p; $("calStep").textContent = "Step 2 of 2"; $("calText").textContent = "Tap the aim coin on your line"; }
+    else { calTaps.aim = p; calib = calTaps; if (mode === "cam") store.set("puttlab.live.calib", calib); endCal(); rest = null; still = null; waitingSince = 0; setState("waiting"); toast("Line set"); if (setup.voice) say("Line set."); }
     drawOverlay();
   });
-  function prompt(t) { $("prompt").hidden = !t; if (t) $("prompt").textContent = t; }
+
 
   // ---------- the sim loop: standby → ready → stroke → read → ready ----------
   const buf = []; let state = "idle", rest = null, still = null, hit = null, lastRes = null;
-  const LABEL = { idle: "Off", cal: "Mark ball & aim", waiting: "Place a ball", ready: "Ready", hit: "Stroke", analyzing: "Reading", result: "Place next ball" };
-  function setState(s) { state = s; $("status").dataset.s = s; $("statusText").textContent = LABEL[s] || s; window.__state = s; }
+  const LABEL = { idle: "Camera off", cal: "Setting your line", waiting: "Waiting for a ball", ready: "Ready", hit: "Reading the stroke", analyzing: "Reading the stroke", result: "Place the next ball" };
+  let waitingSince = 0, lastShown = false;
+  function setState(s) {
+    if (s === "waiting" && state !== "waiting") waitingSince = performance.now();
+    state = s; $("status").dataset.s = s; $("statusText").textContent = LABEL[s] || s; window.__state = s; updateHint();
+  }
+  function updateHint() {
+    const h = $("hint"); let html = "";
+    if (state === "waiting" && !lastShown) html = performance.now() - waitingSince > 6000 ? "Not seeing a ball on your spot<small>Put a white ball where you marked it, or tap Line to move the spot.</small>" : "Place a ball on your spot";
+    h.hidden = !html; if (html && h.innerHTML !== html) h.innerHTML = html;
+  }
   function onFrame(t, g, c) {
     buf.push({ t, g, c }); while (buf.length && buf[0].t < t - BUF_S) buf.shift();
     for (let i = 0; i < buf.length && buf[i].t < t - 3.8; i++) buf[i].c = null; // color frames only for the last few seconds
@@ -259,7 +383,7 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
     }
     // waiting / result: look for a ball sitting still near the spot, then arm
     const b = PuttEngine.calibrateBall(g, W, H, spot, Math.max(12 * ppc, 10));
-    if (!b) { still = null; if (state !== "result") setState("waiting"); return; }
+    if (!b) { still = null; if (state !== "result" && state !== "waiting") setState("waiting"); else if (state === "waiting") updateHint(); return; }
     if (still && Math.hypot(b.x - still.x, b.y - still.y) < Math.max(0.8, 0.2 * b.r)) { if (t - still.t >= STILL_S) { rest = b; setState("ready"); if ($("replay").hidden || (replay && replay.loops >= 1)) showLive(); drawOverlay(); } }
     else still = { x: b.x, y: b.y, t };
   }
@@ -273,7 +397,7 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
       let res; try { res = PuttEngine.analyze(frames.map(f => ({ t: f.t - frames[0].t, g: f.g })), W, H, taps, snap); } catch (e) { res = { error: "Something went wrong reading that putt." }; }
       rest = null; still = null; hit = null;
       if (res.ok) { res.W = W; res.H = H; lastRes = res; showShot(res, snap); buildReplay(res, frames); }
-      else { window.__lastError = res.error; $("fix").innerHTML = `<b>Missed that one</b>${res.error}`; $("shot").hidden = false; say("Didn't read that one."); }
+      else { window.__lastError = res.error; $("shotDot").className = "dot warn"; $("fix").innerHTML = `Didn't read that putt<small>${res.error}</small>`; $("metrics").innerHTML = ""; $("shot").hidden = false; $("shot").classList.remove("min"); lastShown = true; say("Didn't read that one."); }
       setState("result"); drawOverlay();
     }, 10);
   }
@@ -282,11 +406,14 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
   const fmt = (v, pos, neg, u, d = 1) => v == null || isNaN(v) ? "—" : (Math.abs(v) < 0.05 ? "0" + u : Math.abs(v).toFixed(d) + u + " " + (v > 0 ? pos : neg));
   function showShot(res, snap) {
     const g = PuttEngine.grade(res, snap);
-    $("metrics").innerHTML = g.map(m => { const i = m.value.indexOf(" "), big = /^[0-9]/.test(m.value) && i > 0 && !/ (:|in)/.test(m.value.slice(i, i + 3)) ? m.value.slice(0, i) + "<small>" + m.value.slice(i + 1) + "</small>" : m.value;
-      return `<div class="m"><div class="k">${m.label}<b class="${m.status}" title="${m.status}"></b></div><div class="v">${big}</div><div class="s">${m.sub}</div></div>`; }).join("");
+    const word = { good: "on target", warn: "close", bad: "work on it", info: "" };
+    $("metrics").innerHTML = g.map(m => `<div class="m"><div class="k"><i class="${m.status}"></i>${m.label}</div><div class="v">${m.value}</div><div class="s">${m.sub}</div></div>`).join("");
     const worst = g.filter(m => m.status === "warn" || m.status === "bad").sort((a, b) => b.score - a.score)[0];
-    $("fix").innerHTML = worst ? `<b>Fix: ${worst.label}</b>${worst.tip}` : `<b>Solid</b>Tempo, start line and path all check out.`;
-    $("shot").hidden = false;
+    $("shotDot").className = "dot " + (worst ? worst.status : "good");
+    const sum = [res.tempo.ratio != null ? res.tempo.ratio.toFixed(1) + ":1" : null, fmt(res.startDeg, "R", "L", "°"), res.pathDeg != null ? fmt(res.pathDeg, "in-out", "out-in", "°") : null, res.lengthIn.toFixed(0) + " in"].filter(Boolean).join("  ·  ");
+    $("fix").innerHTML = (worst ? `<span class="ttl">Work on your ${worst.label.toLowerCase()}</span><small>${worst.tip}</small>` : `<span class="ttl">Solid stroke</span><small>Tempo, start line and path all check out.</small>`) + `<span class="sum">${sum}</span>`;
+    if (matchMedia("(max-height: 520px)").matches) { $("shot").classList.add("min"); $("shotHead").setAttribute("aria-expanded", "false"); }
+    $("shot").hidden = false; lastShown = true; $("hint").hidden = true;
     session.push({ at: Date.now(), ratio: res.tempo.ratio, start: res.startDeg, path: res.pathDeg, len: res.lengthIn, ft: snap.puttFt, demo: mode === "demo" });
     if (mode !== "demo") store.set("puttlab.live.session", session); renderSession();
     const t = res.tempo.ratio, s = res.startDeg, p = res.pathDeg;
@@ -304,7 +431,7 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
     const k = fr.w / W, X = x => fr.x + x * k, Y = y => fr.y + y * k;
     const flag = getComputedStyle(document.documentElement).getPropertyValue("--flag").trim(), put = getComputedStyle(document.documentElement).getPropertyValue("--putter").trim();
     const cal = state === "cal" ? calTaps : calib; if (!cal) return;
-    const mark = (p, col, label) => { if (!p) return; const x = fr.x + p.fx * fr.w, y = fr.y + p.fy * fr.h; c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); c.arc(x, y, 13, 0, 6.283); c.stroke(); c.fillStyle = col; c.font = "600 13px Barlow, sans-serif"; c.fillText(label, x + 16, y - 12); };
+    const mark = (p, col, label) => { if (!p) return; const x = fr.x + p.fx * fr.w, y = fr.y + p.fy * fr.h; c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); c.arc(x, y, 13, 0, 6.283); c.stroke(); c.fillStyle = col; c.font = "600 13px -apple-system, BlinkMacSystemFont, system-ui, sans-serif"; const tw = c.measureText(label).width; c.fillText(label, x + 16 + tw > fr.cw - 8 ? x - 16 - tw : x + 16, y - 12); };
     if (cal.ball && cal.aim) { const bx = fr.x + cal.ball.fx * fr.w, by = fr.y + cal.ball.fy * fr.h, ax = fr.x + cal.aim.fx * fr.w, ay = fr.y + cal.aim.fy * fr.h, dl = Math.hypot(ax - bx, ay - by), e = fr.cw + fr.ch;
       c.setLineDash([7, 6]); c.strokeStyle = "rgba(255,255,255,.75)"; c.lineWidth = 2; c.beginPath(); c.moveTo(bx - (ax - bx) / dl * e, by - (ay - by) / dl * e); c.lineTo(bx + (ax - bx) / dl * e, by + (ay - by) / dl * e); c.stroke(); c.setLineDash([]); }
     mark(cal.ball, "#ffffff", "Ball spot"); mark(cal.aim, flag, "Aim coin");
@@ -321,12 +448,13 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
     replay = { clip, t0: clip[0].t, t1: clip[clip.length - 1].t, tTop, tImp, o, putter: o.putterTrack.map(p => ({ t: T(p.i), x: p.x, y: p.y })), ballT: o.ballTrack.map(p => ({ t: T(p.i), x: p.x, y: p.y })),
       labels: { path: val("path"), start: val("start") }, img: document.createElement("canvas"), paused: false, rt: clip[0].t, last: 0, loops: 0 };
     replay.img.width = CW; replay.img.height = CH;
-    $("replayBtn").hidden = false; showReplay();
+    $("replayBtn").disabled = false; showReplay();
   }
-  function showReplay() { if (!replay) return; $("replay").hidden = false; $("rchip").hidden = false; $("ov").hidden = true; replay.paused = false; replay.rt = replay.t0; replay.last = 0; replay.loops = 0; cancelAnimationFrame(rAnim); rAnim = requestAnimationFrame(tickReplay); }
-  function showLive() { $("replay").hidden = true; $("rchip").hidden = true; $("ov").hidden = false; cancelAnimationFrame(rAnim); }
-  $("liveBtn").onclick = showLive; $("replayBtn").onclick = showReplay;
-  $("replay").onclick = () => { if (!replay) return; replay.paused = !replay.paused; $("rchipText").textContent = replay.paused ? "Paused · tap to play" : "Replay · ½ speed"; };
+  function showReplay() { if (!replay) return; $("replay").hidden = false; $("ov").hidden = true; $("replayLabel").textContent = "Live"; $("replayBtn").classList.add("on"); replay.paused = false; replay.rt = replay.t0; replay.last = 0; replay.loops = 0; cancelAnimationFrame(rAnim); rAnim = requestAnimationFrame(tickReplay); }
+  function showLive() { $("replay").hidden = true; $("ov").hidden = false; $("replayLabel").textContent = "Replay"; $("replayBtn").classList.remove("on"); cancelAnimationFrame(rAnim); }
+  $("replayBtn").onclick = () => $("replay").hidden ? showReplay() : showLive();
+  $("replay").onclick = () => { if (!replay) return; replay.paused = !replay.paused; toast(replay.paused ? "Paused · tap to play" : "Playing at half speed"); };
+  $("shotHead").onclick = () => { const min = $("shot").classList.toggle("min"); $("shotHead").setAttribute("aria-expanded", !min); };
   function tickReplay(now) {
     const R = replay; if (!R || $("replay").hidden) return;
     if (!R.paused && R.last) { R.rt += (now - R.last) / 1000 * 0.5; if (R.rt > R.t1 + 0.6) { R.rt = R.t0; R.loops++; if (state === "ready" || state === "hit") { showLive(); return; } } }
@@ -343,7 +471,7 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
     const X = x => ox + x * k, Y = y => oy + y * k, css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), flag = css("--flag"), put = css("--putter");
     const o = R.o, lw = Math.max(2, dw / 320);
     const line = (a, b, col, dash, w) => { c.setLineDash(dash || []); c.strokeStyle = col; c.lineWidth = w || lw; c.beginPath(); c.moveTo(X(a.x), Y(a.y)); c.lineTo(X(b.x), Y(b.y)); c.stroke(); c.setLineDash([]); };
-    const pill = (text, x, y, col) => { c.font = `700 ${Math.round(Math.max(13, dw / 48))}px "Barlow Condensed", sans-serif`; const w = c.measureText(text).width + 14, h = Math.max(20, dw / 34);
+    const pill = (text, x, y, col) => { c.font = `600 ${Math.round(Math.max(12, Math.min(15, dw / 52)))}px -apple-system, BlinkMacSystemFont, system-ui, sans-serif`; const w = c.measureText(text).width + 14, h = Math.max(20, dw / 34);
       const px = Math.min(Math.max(ox + 4, x), ox + dw - w - 4), py = Math.min(Math.max(oy + 4, y), oy + dh - h - 4); c.fillStyle = "rgba(0,0,0,.72)"; c.fillRect(px, py, w, h); c.fillStyle = col; c.fillRect(px, py, 3, h); c.fillStyle = "#fff"; c.textBaseline = "middle"; c.fillText(text, px + 9, py + h / 2 + 1); };
     // aim line through the ball and the coin
     { const dx = o.aim.x - o.ball.x, dy = o.aim.y - o.ball.y, dl = Math.hypot(dx, dy), e = W + H; line({ x: o.ball.x - dx / dl * e, y: o.ball.y - dy / dl * e }, { x: o.ball.x + dx / dl * e, y: o.ball.y + dy / dl * e }, "rgba(255,255,255,.8)", [lw * 3, lw * 3], lw * 0.8); }
@@ -351,13 +479,13 @@ tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(-
     const trail = R.putter.filter(p => p.t <= rt);
     if (trail.length > 1) { c.strokeStyle = put; c.lineWidth = lw * 1.4; c.lineJoin = "round"; c.beginPath(); trail.forEach((p, i) => i ? c.lineTo(X(p.x), Y(p.y)) : c.moveTo(X(p.x), Y(p.y))); c.stroke(); }
     if (trail.length) { const h = trail[trail.length - 1]; c.fillStyle = put; c.beginPath(); c.arc(X(h.x), Y(h.y), lw * 2.2, 0, 6.283); c.fill(); }
-    if (rt >= R.tTop) { const top = R.putter.reduce((a, p) => (!a || Math.abs(p.t - R.tTop) < Math.abs(a.t - R.tTop)) ? p : a, null); if (top) { c.strokeStyle = "#fff"; c.lineWidth = lw; c.beginPath(); c.arc(X(top.x), Y(top.y), lw * 3.5, 0, 6.283); c.stroke(); pill("TOP", X(top.x) - 20, Y(top.y) - lw * 3.5 - 26, "#ffffff"); } }
+    if (rt >= R.tTop) { const top = R.putter.reduce((a, p) => (!a || Math.abs(p.t - R.tTop) < Math.abs(a.t - R.tTop)) ? p : a, null); if (top) { c.strokeStyle = "#fff"; c.lineWidth = lw; c.beginPath(); c.arc(X(top.x), Y(top.y), lw * 3.5, 0, 6.283); c.stroke(); pill("Top", X(top.x) - 20, Y(top.y) - lw * 3.5 - 26, "#ffffff"); } }
     if (rt >= R.tImp) {
-      if (o.pathLine) { line(o.pathLine.a, o.pathLine.b, put, [lw * 2.5, lw * 2], lw); if (R.labels.path) pill("PATH " + R.labels.path.toUpperCase(), X(o.pathLine.a.x), Y(o.pathLine.a.y) + lw * 4, put); }
-      line(o.startLine.a, o.startLine.b, flag, [lw * 2.5, lw * 2], lw); if (R.labels.start) pill("START " + R.labels.start.toUpperCase(), X(o.startLine.b.x) - 60, Y(o.startLine.b.y) - 34, flag);
+      if (o.pathLine) { line(o.pathLine.a, o.pathLine.b, put, [lw * 2.5, lw * 2], lw); if (R.labels.path) pill("Path " + R.labels.path, X(o.pathLine.a.x), Y(o.pathLine.a.y) + lw * 4, put); }
+      line(o.startLine.a, o.startLine.b, flag, [lw * 2.5, lw * 2], lw); if (R.labels.start) pill("Start " + R.labels.start, X(o.startLine.b.x) - 60, Y(o.startLine.b.y) - 34, flag);
       const bt = R.ballT.filter(p => p.t <= rt); if (bt.length) { c.strokeStyle = flag; c.lineWidth = lw * 1.4; c.beginPath(); c.moveTo(X(o.ball.x), Y(o.ball.y)); bt.forEach(p => c.lineTo(X(p.x), Y(p.y))); c.stroke(); }
     }
-    if (Math.abs(rt - R.tImp) < 0.05) pill("IMPACT", X(o.ball.x) - 30, Y(o.ball.y) + lw * 6, "#ffffff");
+    if (Math.abs(rt - R.tImp) < 0.05) pill("Impact", X(o.ball.x) - 26, Y(o.ball.y) - lw * 4 - 30, "#ffffff");
   }
 
   // ---------- session ----------

@@ -156,7 +156,7 @@
     const out = [], t = res.tempo;
     if (t.ratio != null) {
       const r = t.ratio, ok = r >= 1.7 && r <= 2.4;
-      out.push({ key: "tempo", label: "Tempo", value: r.toFixed(1) + " : 1", sub: `Back ${t.back.toFixed(2)} s · through ${t.through.toFixed(2)} s`,
+      out.push({ key: "tempo", label: "Tempo", value: r.toFixed(1) + " : 1", sub: `Back ${t.back.toFixed(2)} · thru ${t.through.toFixed(2)} s`,
         status: ok ? "good" : (r >= 1.4 && r <= 2.8 ? "warn" : "bad"), score: ok ? 0 : Math.abs(r - 2) / 0.5,
         tip: ok ? "Smooth. Good putters take about twice as long going back as coming through." :
           r < 1.7 ? "Your backstroke is rushed or you slow down through the ball. Let the putter swing back slower and keep it accelerating through." :
