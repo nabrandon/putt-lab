@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b120d">
+<title>Putt Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: the camera fills the screen like a sim bay; status up top, the last shot along the bottom, drawers on demand.
+   One dark look on purpose: it sits over live video. Pin-flag yellow marks the one thing to look at. */
+:root {
+  --bg: #0b120d; --panel: rgba(12, 20, 15, .86); --panel-solid: #121c16; --ink: #eef4ef; --muted: #9fb2a4; --line: rgba(238, 244, 239, .14);
+  --green: #48b46b; --flag: #f2c53a; --good: #55c27d; --warn: #e3a93a; --bad: #ef7a64; --info: #8fb0d6; --putter: #ff7a59;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif; --body: "Barlow", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.4 var(--body); -webkit-font-smoothing: antialiased; overflow: hidden; }
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+#stage { position: fixed; inset: 0; background: #000; }
+#stage video, #stage canvas.src { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+#ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#tapLayer { position: absolute; inset: 0; cursor: crosshair; }
+.hud-top { position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 10px; padding: calc(env(safe-area-inset-top, 0px) + 10px) max(14px, env(safe-area-inset-right, 0px)) 10px max(14px, env(safe-area-inset-left, 0px)); background: linear-gradient(rgba(0,0,0,.65), rgba(0,0,0,0)); }
+.brand { font: 700 22px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+.status { display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px 6px 10px; font: 700 17px var(--display); letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; }
+.status i { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.status[data-s="ready"] i { background: var(--good); box-shadow: 0 0 0 4px rgba(85, 194, 125, .25); }
+.status[data-s="hit"] i, .status[data-s="analyzing"] i { background: var(--flag); }
+.status[data-s="cal"] i { background: var(--flag); }
+.spacer { flex: 1; }
+.iconbtn { appearance: none; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; min-width: 44px; height: 44px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 600 15px var(--body); cursor: pointer; }
+.iconbtn:active, .btn:active { transform: scale(.97); }
+.rchip { position: fixed; right: max(14px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 64px); display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 4px 4px 14px; font: 600 14px var(--body); }
+.rchip .iconbtn { height: 36px; min-width: 0; border-radius: 999px; }
+#replay { cursor: pointer; }
+.prompt { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--flag); color: #241c00; font: 700 22px var(--display); letter-spacing: .04em; text-transform: uppercase; padding: 10px 20px; border-radius: 999px; pointer-events: none; white-space: nowrap; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.shot { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px max(14px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 12px) max(14px, env(safe-area-inset-left, 0px)); background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.75) 30%); }
+.shot-inner { max-width: 980px; margin: 0 auto; display: grid; gap: 8px; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.m { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.m .k { display: flex; justify-content: space-between; align-items: center; gap: 6px; font: 600 11px var(--body); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.m .k b { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.m .k b.good { background: var(--good); } .m .k b.warn { background: var(--warn); } .m .k b.bad { background: var(--bad); } .m .k b.info { background: var(--info); }
+.m .v { font: 700 30px/1.05 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m .v small { font: 600 14px var(--body); color: var(--muted); margin-left: 4px; }
+.m .s { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fix { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--flag); border-radius: 12px; padding: 8px 12px; font-size: 15px; }
+.fix b { font: 700 16px var(--display); letter-spacing: .04em; text-transform: uppercase; margin-right: 6px; }
+@media (max-width: 640px) and (orientation: portrait) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-height: 500px) { .fix { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 6px 10px; font-size: 14px; } .m { padding: 6px 10px; } .m .v { font-size: 24px; } .m .s { display: none; } .shot-inner { gap: 6px; } }
+.sheet { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100%); background: var(--panel-solid); border-left: 1px solid var(--line); padding: calc(env(safe-area-inset-top, 0px) + 16px) max(18px, env(safe-area-inset-right, 0px)) calc(env(safe-area-inset-bottom, 0px) + 16px) 18px; overflow-y: auto; display: grid; align-content: start; gap: 14px; z-index: 5; }
+.sheet h2 { margin: 0; font: 700 24px var(--display); letter-spacing: .04em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.field span { color: var(--muted); font-weight: 500; }
+.step { display: flex; align-items: center; gap: 8px; }
+.step b { font: 700 22px var(--display); min-width: 60px; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.step button, .seg button { appearance: none; border: 1px solid var(--line); background: rgba(255,255,255,.04); border-radius: 10px; width: 44px; height: 44px; font-size: 20px; cursor: pointer; }
+.seg { display: flex; gap: 6px; } .seg button { width: auto; padding: 0 14px; font-size: 15px; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: #06210f; }
+.btn { appearance: none; border: 0; border-radius: 12px; min-height: 50px; padding: 12px 18px; font: 600 17px var(--body); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .1s ease-out; }
+.btn-primary { background: var(--green); color: #06210f; } .btn-ghost { background: rgba(255,255,255,.06); border: 1px solid var(--line); color: var(--ink); }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 15px; }
+th, td { padding: 8px 4px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; } th:first-child, td:first-child { text-align: left; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+tfoot td { font-weight: 600; } tfoot .spread td { font-weight: 400; color: var(--muted); font-size: 13px; }
+.muted { color: var(--muted); font-size: 14px; margin: 0; }
+.start { position: fixed; inset: 0; display: grid; place-items: center; padding: max(20px, env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px)); background: radial-gradient(120% 90% at 50% 120%, #1d5c35 0%, var(--bg) 60%); overflow-y: auto; z-index: 6; }
+.start-card { width: min(560px, 100%); display: grid; gap: 16px; }
+.start h1 { margin: 0; font: 700 56px/0.95 var(--display); letter-spacing: .02em; text-transform: uppercase; }
+.start h1 span { color: var(--flag); }
+.start p { margin: 0; color: var(--muted); font-size: 17px; }
+.start ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--ink); }
+.start .row { display: flex; gap: 10px; flex-wrap: wrap; } .start .row .btn { flex: 1 1 200px; }
+.err { color: var(--bad); font-weight: 600; }
+:focus-visible { outline: 3px solid var(--flag); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .btn, .iconbtn { transition: none; } }
+</style>
+</head>
+<body>
+<div id="stage"><video id="cam" playsinline muted autoplay hidden></video><canvas class="src" id="demoView" hidden></canvas><canvas id="ov"></canvas><canvas class="src" id="replay" hidden></canvas><div id="tapLayer" hidden></div></div>
+<div class="rchip" id="rchip" hidden><span id="rchipText">Replay · ½ speed</span><button class="iconbtn" id="liveBtn" type="button">Live</button></div>
+
+<div class="hud-top">
+  <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><line x1="7" y1="3" x2="7" y2="21" stroke="currentColor" stroke-width="2"/><path d="M7 3 L21 7.5 L7 12Z" fill="var(--flag)"/></svg>Putt Lab</div>
+  <div class="status" id="status" data-s="idle"><i></i><span id="statusText">Off</span></div>
+  <div class="spacer"></div>
+  <button class="iconbtn" id="replayBtn" type="button" hidden>Replay</button>
+  <button class="iconbtn" id="voiceBtn" type="button" aria-pressed="true" aria-label="Voice callouts">🔊</button>
+  <button class="iconbtn" id="sessionBtn" type="button">Session <span id="count">0</span></button>
+  <button class="iconbtn" id="setBtn" type="button" aria-label="Settings"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+</div>
+<div class="prompt" id="prompt" hidden></div>
+
+<div class="shot" id="shot" hidden><div class="shot-inner"><div class="fix" id="fix"></div><div class="metrics" id="metrics"></div></div></div>
+
+<aside class="sheet" id="settings" hidden>
+  <h2>Setup <button class="iconbtn" data-close="settings" type="button">Done</button></h2>
+  <div class="field"><span>Putt length</span><div class="step"><button type="button" data-step="puttFt:-1" aria-label="Shorter">−</button><b id="v-puttFt"></b><button type="button" data-step="puttFt:1" aria-label="Longer">+</button></div></div>
+  <div class="field"><span>Tripod height (camera to green)</span><div class="step"><button type="button" data-step="camHin:-2" aria-label="Lower">−</button><b id="v-camHin"></b><button type="button" data-step="camHin:2" aria-label="Higher">+</button></div></div>
+  <div class="field"><span>Offset past your line</span><div class="step"><button type="button" data-step="camOutIn:-1" aria-label="Less">−</button><b id="v-camOutIn"></b><button type="button" data-step="camOutIn:1" aria-label="More">+</button></div></div>
+  <div class="field"><span>You putt</span><div class="seg"><button type="button" id="handR">Right</button><button type="button" id="handL">Left</button></div></div>
+  <button class="btn btn-ghost" id="recalBtn" type="button">Re-mark ball spot and aim coin</button>
+  <p class="muted">Tripod height and offset correct for the camera angle; within a few inches is fine. The aim coin sets your line, so put it right on it.</p>
+  <button class="btn btn-ghost" id="stopBtn" type="button">Turn camera off</button>
+</aside>
+
+<aside class="sheet" id="session" hidden>
+  <h2>Session <button class="iconbtn" data-close="session" type="button">Done</button></h2>
+  <p class="muted" id="sessEmpty">Putts land here as you roll them, with averages and how consistent you were.</p>
+  <div style="overflow-x:auto" id="sessWrap" hidden><table>
+    <thead><tr><th>#</th><th>Tempo</th><th>Start</th><th>Path</th><th>Back</th></tr></thead>
+    <tbody id="sessBody"></tbody>
+    <tfoot><tr><td>Avg</td><td id="aT"></td><td id="aS"></td><td id="aP"></td><td id="aB"></td></tr><tr class="spread"><td>±</td><td id="dT"></td><td id="dS"></td><td id="dP"></td><td id="dB"></td></tr></tfoot>
+  </table></div>
+  <div id="clearRow" hidden><button class="btn btn-ghost" id="clearBtn" type="button">Clear session</button>
+    <div id="clearAsk" hidden style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>Delete every putt?</span><button class="btn btn-ghost" id="clearYes" type="button">Delete</button><button class="btn btn-ghost" id="clearNo" type="button">Keep</button></div></div>
+</aside>
+
+<section class="start" id="start">
+  <div class="start-card">
+    <h1>Putt <span>Lab</span></h1>
+    <p>Your putting sim. Leave it on, roll putts, and it reads every stroke the moment the ball leaves your spot: tempo, start line, putter path and backstroke, called out loud.</p>
+    <ol>
+      <li>Phone on the tripod arm above your putter, camera down, out past the far side of your line. Hold it sideways.</li>
+      <li>Drop a coin on your line 1–2 ft ahead of the ball, inside the picture.</li>
+      <li>Start the camera, tap your ball, then the coin. After that it arms itself every time a ball sits still on the spot.</li>
+    </ol>
+    <div class="row"><button class="btn btn-primary" id="camBtn" type="button">Start camera</button><button class="btn btn-ghost" id="demoBtn" type="button">Try the demo</button></div>
+    <p class="err" id="startErr" hidden></p>
+  </div>
+</section>
+
+<script src="engine.js"></script>
+<script src="sample.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const LONG = 400, BUF_S = 4.5, AFTER_S = 0.7, STILL_S = 0.6;
+  const store = { get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+  const setup = Object.assign({ puttFt: 8, camHin: 45, camOutIn: 15, hand: "R", voice: true }, store.get("puttlab.live.setup", {}));
+  let session = store.get("puttlab.live.session", []);
+  const lim = { puttFt: [3, 40], camHin: [24, 72], camOutIn: [0, 36] };
+
+  // ---------- settings ----------
+  function renderSetup() {
+    $("v-puttFt").textContent = setup.puttFt + " ft"; $("v-camHin").textContent = setup.camHin + " in"; $("v-camOutIn").textContent = setup.camOutIn + " in";
+    $("handR").setAttribute("aria-pressed", setup.hand === "R"); $("handL").setAttribute("aria-pressed", setup.hand === "L");
+    $("voiceBtn").setAttribute("aria-pressed", setup.voice); $("voiceBtn").textContent = setup.voice ? "🔊" : "🔈"; $("voiceBtn").style.opacity = setup.voice ? 1 : .55;
+    store.set("puttlab.live.setup", setup);
+  }
+  document.querySelectorAll("[data-step]").forEach(b => b.onclick = () => { const [k, d] = b.dataset.step.split(":"); setup[k] = Math.min(lim[k][1], Math.max(lim[k][0], setup[k] + +d)); renderSetup(); });
+  $("handR").onclick = () => { setup.hand = "R"; renderSetup(); }; $("handL").onclick = () => { setup.hand = "L"; renderSetup(); };
+  $("voiceBtn").onclick = () => { setup.voice = !setup.voice; renderSetup(); if (!setup.voice) try { speechSynthesis.cancel(); } catch (e) {} };
+  $("setBtn").onclick = () => { $("session").hidden = true; $("settings").hidden = !$("settings").hidden; };
+  $("sessionBtn").onclick = () => { $("settings").hidden = true; $("session").hidden = !$("session").hidden; };
+  document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => $(b.dataset.close).hidden = true);
+
+  // ---------- frame source ----------
+  let W = 0, H = 0, work = null, wctx = null, viewEl = null, srcW = 0, srcH = 0, running = false, stream = null, demo = null;
+  const gray = d => { const g = new Uint8Array(d.length / 4); for (let i = 0, j = 0; i < d.length; i += 4, j++) g[j] = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8; return g; };
+  // two copies of every frame: a small gray one for measuring, and a sharper color one (about 30 a second) for the replay
+  const CLONG = 512; let CW = 0, CH = 0, ccv = null, cctx = null, lastC = -1;
+  function sizeFor(w, h) { srcW = w; srcH = h; const land = w >= h; W = land ? LONG : Math.round(LONG * w / h); H = land ? Math.round(LONG * h / w) : LONG; work = document.createElement("canvas"); work.width = W; work.height = H; wctx = work.getContext("2d", { willReadFrequently: true });
+    CW = Math.round(W * CLONG / LONG); CH = Math.round(H * CLONG / LONG); ccv = document.createElement("canvas"); ccv.width = CW; ccv.height = CH; cctx = ccv.getContext("2d", { willReadFrequently: true }); }
+  function grab(srcEl, t) {
+    wctx.drawImage(srcEl, 0, 0, W, H); let c = null;
+    if (t - lastC >= 1 / 31) { cctx.drawImage(srcEl, 0, 0, CW, CH); c = cctx.getImageData(0, 0, CW, CH); lastC = t; }
+    onFrame(t, gray(wctx.getImageData(0, 0, W, H).data), c);
+  }
+
+  async function startCamera() {
+    $("startErr").hidden = true;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 } } });
+    } catch (e) { $("startErr").textContent = "The camera didn't open. Allow camera access for this page in Safari (aA menu → Website Settings → Camera), then try again."; $("startErr").hidden = false; return; }
+    const v = $("cam"); v.srcObject = stream; v.hidden = false; $("demoView").hidden = true; await v.play().catch(() => {});
+    await new Promise(r => { if (v.videoWidth) r(); else v.onloadedmetadata = r; });
+    sizeFor(v.videoWidth, v.videoHeight); viewEl = v; begin("cam");
+    if ("requestVideoFrameCallback" in v) { const cb = (now, meta) => { if (!running) return; grab(v, now / 1000); v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
+    else { const loop = now => { if (!running) return; grab(v, now / 1000); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+  }
+
+  // demo: a simulated bay that rolls a putt every few seconds with a different stroke each time
+  function startDemo() {
+    const DW = 800, DH = 450, view = $("demoView"); view.width = DW; view.height = DH; view.hidden = false; $("cam").hidden = true;
+    const dctx = view.getContext("2d"); sizeFor(DW, DH); viewEl = view;
+    let n = 0, seq = null, t0 = 0;
+    const variants = [{}, { pathDeg: -3, startDeg: -1.4, backS: 0.55, fwdS: 0.4 }, { lenCm: 35, backS: 0.8, fwdS: 0.38, pathDeg: 0.5, startDeg: 0.2 }, { pathDeg: 4.5, startDeg: 1.6, backS: 0.62, fwdS: 0.27 }];
+    const next = now => { const v = Object.assign({ address: 1.8, after: 1.0, noise: 8, flicker: 0.02 }, variants[n++ % variants.length]); seq = { S: PuttSample.makeSample(DW, DH, v), gap: 4 }; t0 = now; };
+    demo = { calib: null };
+    const s0 = PuttSample.makeSample(DW, DH, {}); demo.calib = { ball: { fx: s0.ballTap.x / DW, fy: s0.ballTap.y / DH }, aim: { fx: s0.aimTap.x / DW, fy: s0.aimTap.y / DH } };
+    begin("demo");
+    const loop = nowMs => { if (!running) return; const now = nowMs / 1000; if (!seq) next(now); let t = now - t0;
+      if (t > seq.S.dur + seq.gap) { next(now); t = 0; }
+      seq.S.draw(dctx, Math.min(t, seq.S.dur), { hideBall: t > seq.S.dur }); grab(view, now); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  }
+
+  let wake = null;
+  async function keepAwake() { try { wake = await navigator.wakeLock.request("screen"); } catch (e) {} }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && running) keepAwake(); });
+
+  function begin(kind) {
+    running = true; $("start").hidden = true; mode = kind; keepAwake();
+    calib = kind === "demo" ? demo.calib : store.get("puttlab.live.calib", null);
+    buf.length = 0; rest = null; still = null; hit = null;
+    setState(calib ? "waiting" : "cal"); if (!calib) startCal();
+    if (setup.voice) say(kind === "demo" ? "Demo bay running." : "Camera on.");
+    window.addEventListener("resize", drawOverlay);
+  }
+  function stop() { showLive(); running = false; if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; try { wake && wake.release(); } catch (e) {} $("start").hidden = false; $("settings").hidden = true; setState("idle"); }
+  $("camBtn").onclick = () => { primeSpeech(); startCamera(); };
+  $("demoBtn").onclick = () => { primeSpeech(); startDemo(); };
+  $("stopBtn").onclick = stop;
+
+  // ---------- voice ----------
+  function primeSpeech() { try { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); } catch (e) {} }
+  function say(text) { if (!setup.voice) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = 1.05; speechSynthesis.speak(u); } catch (e) {} window.__lastSpoken = text; }
+
+  // ---------- calibration taps ----------
+  let mode = null, calib = null, calTaps = null;
+  function fitRect(el) { const cw = el.clientWidth, ch = el.clientHeight, s = Math.min(cw / srcW, ch / srcH); return { x: (cw - srcW * s) / 2, y: (ch - srcH * s) / 2, w: srcW * s, h: srcH * s, cw, ch }; }
+  function startCal() { showLive(); calTaps = {}; $("tapLayer").hidden = false; setState("cal"); prompt("Tap your ball"); drawOverlay(); }
+  $("recalBtn").onclick = () => { $("settings").hidden = true; startCal(); };
+  $("tapLayer").addEventListener("click", e => {
+    const fr = fitRect(viewEl), p = { fx: (e.clientX - fr.x) / fr.w, fy: (e.clientY - fr.y) / fr.h }; if (p.fx < 0 || p.fx > 1 || p.fy < 0 || p.fy > 1) return;
+    if (!calTaps.ball) { calTaps.ball = p; prompt("Now tap the aim coin"); }
+    else { calTaps.aim = p; calib = calTaps; if (mode === "cam") store.set("puttlab.live.calib", calib); $("tapLayer").hidden = true; prompt(null); rest = null; still = null; setState("waiting"); }
+    drawOverlay();
+  });
+  function prompt(t) { $("prompt").hidden = !t; if (t) $("prompt").textContent = t; }
+
+  // ---------- the sim loop: standby → ready → stroke → read → ready ----------
+  const buf = []; let state = "idle", rest = null, still = null, hit = null, lastRes = null;
+  const LABEL = { idle: "Off", cal: "Mark ball & aim", waiting: "Place a ball", ready: "Ready", hit: "Stroke", analyzing: "Reading", result: "Place next ball" };
+  function setState(s) { state = s; $("status").dataset.s = s; $("statusText").textContent = LABEL[s] || s; window.__state = s; }
+  function onFrame(t, g, c) {
+    buf.push({ t, g, c }); while (buf.length && buf[0].t < t - BUF_S) buf.shift();
+    for (let i = 0; i < buf.length && buf[i].t < t - 3.8; i++) buf[i].c = null; // color frames only for the last few seconds
+    if (!calib || state === "cal" || state === "analyzing") return;
+    const spot = rest ? { x: rest.x, y: rest.y } : { x: calib.ball.fx * W, y: calib.ball.fy * H };
+    const ppc = rest ? rest.r / PuttEngine.BALL_R : Math.min(W, H) / 120; // pixels per cm
+    if (state === "hit") { if (t >= hit.t + AFTER_S) readStroke(t); return; }
+    if (state === "ready") {
+      const b = PuttEngine.findBlob(g, W, H, rest.x, rest.y, Math.max(2.5 * rest.r, 10 * ppc), rest.thr, Math.max(2, rest.area * 0.45));
+      if (!b) return; // a putter or hand can hide the ball for a moment
+      const ax = calib.aim.fx * W - rest.x, ay = calib.aim.fy * H - rest.y, al = Math.hypot(ax, ay);
+      const dx = b.x - rest.x, dy = b.y - rest.y, along = (dx * ax + dy * ay) / al, across = Math.abs(dx * ay - dy * ax) / al;
+      if (along > Math.max(1.2, 0.6 * rest.r) && along > across) { hit = { t }; setState("hit"); }
+      else if (Math.hypot(dx, dy) > 0.5 * rest.r && Math.hypot(dx, dy) < 2 * rest.r) { /* nudged back or sideways: re-settle */ rest = null; still = null; setState("waiting"); }
+      return;
+    }
+    // waiting / result: look for a ball sitting still near the spot, then arm
+    const b = PuttEngine.calibrateBall(g, W, H, spot, Math.max(12 * ppc, 10));
+    if (!b) { still = null; if (state !== "result") setState("waiting"); return; }
+    if (still && Math.hypot(b.x - still.x, b.y - still.y) < Math.max(0.8, 0.2 * b.r)) { if (t - still.t >= STILL_S) { rest = b; setState("ready"); if ($("replay").hidden || (replay && replay.loops >= 1)) showLive(); drawOverlay(); } }
+    else still = { x: b.x, y: b.y, t };
+  }
+  function readStroke(t) {
+    setState("analyzing");
+    const from = Math.max(hit.t - 3.5, ((still && still.t) || 0) + 0.1); // first frame must show the ball at rest
+    const frames = buf.filter(f => f.t >= from);
+    const snap = { puttFt: setup.puttFt, hand: setup.hand, camHcm: setup.camHin * 2.54, camOutCm: setup.camOutIn * 2.54 };
+    const taps = { ball: { x: rest.x, y: rest.y }, aim: { x: calib.aim.fx * W, y: calib.aim.fy * H } };
+    setTimeout(() => {
+      let res; try { res = PuttEngine.analyze(frames.map(f => ({ t: f.t - frames[0].t, g: f.g })), W, H, taps, snap); } catch (e) { res = { error: "Something went wrong reading that putt." }; }
+      rest = null; still = null; hit = null;
+      if (res.ok) { res.W = W; res.H = H; lastRes = res; showShot(res, snap); buildReplay(res, frames); }
+      else { window.__lastError = res.error; $("fix").innerHTML = `<b>Missed that one</b>${res.error}`; $("shot").hidden = false; say("Didn't read that one."); }
+      setState("result"); drawOverlay();
+    }, 10);
+  }
+
+  // ---------- results ----------
+  const fmt = (v, pos, neg, u, d = 1) => v == null || isNaN(v) ? "—" : (Math.abs(v) < 0.05 ? "0" + u : Math.abs(v).toFixed(d) + u + " " + (v > 0 ? pos : neg));
+  function showShot(res, snap) {
+    const g = PuttEngine.grade(res, snap);
+    $("metrics").innerHTML = g.map(m => { const i = m.value.indexOf(" "), big = /^[0-9]/.test(m.value) && i > 0 && !/ (:|in)/.test(m.value.slice(i, i + 3)) ? m.value.slice(0, i) + "<small>" + m.value.slice(i + 1) + "</small>" : m.value;
+      return `<div class="m"><div class="k">${m.label}<b class="${m.status}" title="${m.status}"></b></div><div class="v">${big}</div><div class="s">${m.sub}</div></div>`; }).join("");
+    const worst = g.filter(m => m.status === "warn" || m.status === "bad").sort((a, b) => b.score - a.score)[0];
+    $("fix").innerHTML = worst ? `<b>Fix: ${worst.label}</b>${worst.tip}` : `<b>Solid</b>Tempo, start line and path all check out.`;
+    $("shot").hidden = false;
+    session.push({ at: Date.now(), ratio: res.tempo.ratio, start: res.startDeg, path: res.pathDeg, len: res.lengthIn, ft: snap.puttFt, demo: mode === "demo" });
+    if (mode !== "demo") store.set("puttlab.live.session", session); renderSession();
+    const t = res.tempo.ratio, s = res.startDeg, p = res.pathDeg;
+    const words = [];
+    if (t != null) words.push(`Tempo ${t.toFixed(1)} to 1.`);
+    words.push(Math.abs(s) < 0.3 ? "Started on line." : `Started ${Math.abs(s).toFixed(1)} degrees ${s > 0 ? "right" : "left"}.`);
+    if (p != null) words.push(Math.abs(p) < 1 ? "Path square." : `Path ${Math.abs(p).toFixed(1)} ${p > 0 ? "in to out" : "out to in"}.`);
+    words.push(`Backstroke ${res.lengthIn.toFixed(0)} inches.`);
+    say(words.join(" "));
+    window.__lastResult = { ratio: t, start: s, path: p, len: res.lengthIn };
+  }
+  function drawOverlay() {
+    const cv = $("ov"), dpr = window.devicePixelRatio || 1; if (!viewEl || !srcW) return;
+    const fr = fitRect(viewEl); cv.width = fr.cw * dpr; cv.height = fr.ch * dpr; const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const k = fr.w / W, X = x => fr.x + x * k, Y = y => fr.y + y * k;
+    const flag = getComputedStyle(document.documentElement).getPropertyValue("--flag").trim(), put = getComputedStyle(document.documentElement).getPropertyValue("--putter").trim();
+    const cal = state === "cal" ? calTaps : calib; if (!cal) return;
+    const mark = (p, col, label) => { if (!p) return; const x = fr.x + p.fx * fr.w, y = fr.y + p.fy * fr.h; c.strokeStyle = col; c.lineWidth = 2.5; c.beginPath(); c.arc(x, y, 13, 0, 6.283); c.stroke(); c.fillStyle = col; c.font = "600 13px Barlow, sans-serif"; c.fillText(label, x + 16, y - 12); };
+    if (cal.ball && cal.aim) { const bx = fr.x + cal.ball.fx * fr.w, by = fr.y + cal.ball.fy * fr.h, ax = fr.x + cal.aim.fx * fr.w, ay = fr.y + cal.aim.fy * fr.h, dl = Math.hypot(ax - bx, ay - by), e = fr.cw + fr.ch;
+      c.setLineDash([7, 6]); c.strokeStyle = "rgba(255,255,255,.75)"; c.lineWidth = 2; c.beginPath(); c.moveTo(bx - (ax - bx) / dl * e, by - (ay - by) / dl * e); c.lineTo(bx + (ax - bx) / dl * e, by + (ay - by) / dl * e); c.stroke(); c.setLineDash([]); }
+    mark(cal.ball, "#ffffff", "Ball spot"); mark(cal.aim, flag, "Aim coin");
+  }
+
+  // ---------- replay: the real clip of the stroke, slowed down, with the lines drawn as it happens ----------
+  let replay = null, rAnim = 0;
+  function buildReplay(res, frames) {
+    const T = i => frames[Math.min(frames.length - 1, Math.max(0, i))].t, o = res.overlay;
+    const tTake = T(res.frames.takeaway), tTop = frames[0].t + res.times.top, tImp = frames[0].t + res.times.impact;
+    const clip = buf.filter(f => f.c && f.t >= tTake - 0.45).map(f => ({ t: f.t, c: f.c })); // own copy: the live buffer drops old frames
+    if (clip.length < 5) { replay = null; return; }
+    const g = PuttEngine.grade(res, { puttFt: setup.puttFt }), val = k => (g.find(m => m.key === k) || {}).value;
+    replay = { clip, t0: clip[0].t, t1: clip[clip.length - 1].t, tTop, tImp, o, putter: o.putterTrack.map(p => ({ t: T(p.i), x: p.x, y: p.y })), ballT: o.ballTrack.map(p => ({ t: T(p.i), x: p.x, y: p.y })),
+      labels: { path: val("path"), start: val("start") }, img: document.createElement("canvas"), paused: false, rt: clip[0].t, last: 0, loops: 0 };
+    replay.img.width = CW; replay.img.height = CH;
+    $("replayBtn").hidden = false; showReplay();
+  }
+  function showReplay() { if (!replay) return; $("replay").hidden = false; $("rchip").hidden = false; $("ov").hidden = true; replay.paused = false; replay.rt = replay.t0; replay.last = 0; replay.loops = 0; cancelAnimationFrame(rAnim); rAnim = requestAnimationFrame(tickReplay); }
+  function showLive() { $("replay").hidden = true; $("rchip").hidden = true; $("ov").hidden = false; cancelAnimationFrame(rAnim); }
+  $("liveBtn").onclick = showLive; $("replayBtn").onclick = showReplay;
+  $("replay").onclick = () => { if (!replay) return; replay.paused = !replay.paused; $("rchipText").textContent = replay.paused ? "Paused · tap to play" : "Replay · ½ speed"; };
+  function tickReplay(now) {
+    const R = replay; if (!R || $("replay").hidden) return;
+    if (!R.paused && R.last) { R.rt += (now - R.last) / 1000 * 0.5; if (R.rt > R.t1 + 0.6) { R.rt = R.t0; R.loops++; if (state === "ready" || state === "hit") { showLive(); return; } } }
+    R.last = now; drawReplay(Math.min(R.rt, R.t1)); rAnim = requestAnimationFrame(tickReplay);
+  }
+  function drawReplay(rt) {
+    const R = replay, cv = $("replay"), dpr = window.devicePixelRatio || 1, cw = cv.clientWidth, ch = cv.clientHeight;
+    if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) { cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); }
+    const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.fillStyle = "#000"; c.fillRect(0, 0, cw, ch);
+    let f = R.clip[0]; for (const x of R.clip) { if (x.t <= rt) f = x; else break; }
+    R.img.getContext("2d").putImageData(f.c, 0, 0);
+    const sc = Math.min(cw / CW, ch / CH), dw = CW * sc, dh = CH * sc, ox = (cw - dw) / 2, oy = (ch - dh) / 2, k = dw / W;
+    c.imageSmoothingQuality = "high"; c.drawImage(R.img, ox, oy, dw, dh);
+    const X = x => ox + x * k, Y = y => oy + y * k, css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), flag = css("--flag"), put = css("--putter");
+    const o = R.o, lw = Math.max(2, dw / 320);
+    const line = (a, b, col, dash, w) => { c.setLineDash(dash || []); c.strokeStyle = col; c.lineWidth = w || lw; c.beginPath(); c.moveTo(X(a.x), Y(a.y)); c.lineTo(X(b.x), Y(b.y)); c.stroke(); c.setLineDash([]); };
+    const pill = (text, x, y, col) => { c.font = `700 ${Math.round(Math.max(13, dw / 48))}px "Barlow Condensed", sans-serif`; const w = c.measureText(text).width + 14, h = Math.max(20, dw / 34);
+      const px = Math.min(Math.max(ox + 4, x), ox + dw - w - 4), py = Math.min(Math.max(oy + 4, y), oy + dh - h - 4); c.fillStyle = "rgba(0,0,0,.72)"; c.fillRect(px, py, w, h); c.fillStyle = col; c.fillRect(px, py, 3, h); c.fillStyle = "#fff"; c.textBaseline = "middle"; c.fillText(text, px + 9, py + h / 2 + 1); };
+    // aim line through the ball and the coin
+    { const dx = o.aim.x - o.ball.x, dy = o.aim.y - o.ball.y, dl = Math.hypot(dx, dy), e = W + H; line({ x: o.ball.x - dx / dl * e, y: o.ball.y - dy / dl * e }, { x: o.ball.x + dx / dl * e, y: o.ball.y + dy / dl * e }, "rgba(255,255,255,.8)", [lw * 3, lw * 3], lw * 0.8); }
+    // putter path: the clubhead's trail so far
+    const trail = R.putter.filter(p => p.t <= rt);
+    if (trail.length > 1) { c.strokeStyle = put; c.lineWidth = lw * 1.4; c.lineJoin = "round"; c.beginPath(); trail.forEach((p, i) => i ? c.lineTo(X(p.x), Y(p.y)) : c.moveTo(X(p.x), Y(p.y))); c.stroke(); }
+    if (trail.length) { const h = trail[trail.length - 1]; c.fillStyle = put; c.beginPath(); c.arc(X(h.x), Y(h.y), lw * 2.2, 0, 6.283); c.fill(); }
+    if (rt >= R.tTop) { const top = R.putter.reduce((a, p) => (!a || Math.abs(p.t - R.tTop) < Math.abs(a.t - R.tTop)) ? p : a, null); if (top) { c.strokeStyle = "#fff"; c.lineWidth = lw; c.beginPath(); c.arc(X(top.x), Y(top.y), lw * 3.5, 0, 6.283); c.stroke(); pill("TOP", X(top.x) - 20, Y(top.y) - lw * 3.5 - 26, "#ffffff"); } }
+    if (rt >= R.tImp) {
+      if (o.pathLine) { line(o.pathLine.a, o.pathLine.b, put, [lw * 2.5, lw * 2], lw); if (R.labels.path) pill("PATH " + R.labels.path.toUpperCase(), X(o.pathLine.a.x), Y(o.pathLine.a.y) + lw * 4, put); }
+      line(o.startLine.a, o.startLine.b, flag, [lw * 2.5, lw * 2], lw); if (R.labels.start) pill("START " + R.labels.start.toUpperCase(), X(o.startLine.b.x) - 60, Y(o.startLine.b.y) - 34, flag);
+      const bt = R.ballT.filter(p => p.t <= rt); if (bt.length) { c.strokeStyle = flag; c.lineWidth = lw * 1.4; c.beginPath(); c.moveTo(X(o.ball.x), Y(o.ball.y)); bt.forEach(p => c.lineTo(X(p.x), Y(p.y))); c.stroke(); }
+    }
+    if (Math.abs(rt - R.tImp) < 0.05) pill("IMPACT", X(o.ball.x) - 30, Y(o.ball.y) + lw * 6, "#ffffff");
+  }
+
+  // ---------- session ----------
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length, sd = a => a.length < 2 ? null : Math.sqrt(a.reduce((x, y) => x + (y - mean(a)) ** 2, 0) / (a.length - 1));
+  function renderSession() {
+    $("count").textContent = session.length; const has = session.length > 0; $("sessEmpty").hidden = has; $("sessWrap").hidden = !has; $("clearRow").hidden = !has; if (!has) return;
+    const ok = v => v != null && !isNaN(v);
+    $("sessBody").innerHTML = session.map((p, i) => `<tr><td>${i + 1}</td><td>${ok(p.ratio) ? p.ratio.toFixed(1) + ":1" : "—"}</td><td>${fmt(p.start, "R", "L", "°")}</td><td>${fmt(p.path, "in-out", "out-in", "°")}</td><td>${p.len.toFixed(0)} in</td></tr>`).join("");
+    const col = k => session.map(p => p[k]).filter(ok), R = col("ratio"), S = col("start"), P = col("path"), L = col("len");
+    $("aT").textContent = R.length ? mean(R).toFixed(1) + ":1" : "—"; $("aS").textContent = S.length ? fmt(mean(S), "R", "L", "°") : "—"; $("aP").textContent = P.length ? fmt(mean(P), "in-out", "out-in", "°") : "—"; $("aB").textContent = L.length ? mean(L).toFixed(0) + " in" : "—";
+    const f = (a, d, u) => { const s = sd(a); return s == null ? "—" : s.toFixed(d) + u; }; $("dT").textContent = f(R, 2, ""); $("dS").textContent = f(S, 1, "°"); $("dP").textContent = f(P, 1, "°"); $("dB").textContent = f(L, 1, " in");
+  }
+  $("clearBtn").onclick = () => { $("clearAsk").hidden = false; $("clearBtn").hidden = true; };
+  $("clearNo").onclick = () => { $("clearAsk").hidden = true; $("clearBtn").hidden = false; };
+  $("clearYes").onclick = () => { session = []; store.set("puttlab.live.session", session); $("clearAsk").hidden = true; $("clearBtn").hidden = false; renderSession(); };
+
+  renderSetup(); renderSession();
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { $("camBtn").disabled = true; $("startErr").textContent = "This browser can't open the camera here. Open the page in Safari on your iPhone."; $("startErr").hidden = false; }
+})();
+</script>
+</body>
+</html>
